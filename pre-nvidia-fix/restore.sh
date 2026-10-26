@@ -6,7 +6,9 @@ set -e
 S=$(dirname "$(readlink -f "$0")")
 sudo rm -f /etc/mkinitcpio.conf.d/zz-early-nvidia-handoff.conf \
            /etc/initcpio/install/nvidia-handoff /etc/initcpio/hooks/nvidia-handoff \
-           /etc/initcpio/nvidia-initrd.conf
+           /etc/initcpio/nvidia-initrd.conf \
+           /etc/mkinitcpio.conf.d/zz-nvidia-probe.conf \
+           /etc/initcpio/install/nvidia-probe /etc/initcpio/hooks/nvidia-probe
 sudo cp "$S/etc/mkinitcpio.conf.d/zz-no-early-nvidia.conf" /etc/mkinitcpio.conf.d/
 sudo limine-mkinitcpio
 echo "Restored pre-nvidia-fix. Reboot to use it."

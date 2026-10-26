@@ -1,0 +1,45 @@
+#!/usr/bin/ash
+
+# Diagnostic (2026-10-26): runs before encrypt. nvidia-drm reports every
+# connector disconnected in the initramfs, so plymouth finds no heads on the
+# NVIDIA card and the LUKS prompt never reaches the external HDMI screen.
+# Log the connector states, force a re-detect a few times and send a drm
+# change event so plymouth re-enumerates. Logs "nvidia-probe:" to kmsg.
+nvidia_probe_log() {
+    echo "<5>nvidia-probe: $*" >/dev/kmsg
+}
+
+nvidia_probe_states() {
+    local c s=""
+    for c in /sys/class/drm/$1-*; do
+        [ -e "$c/status" ] && s="$s ${c##*/}=$(cat "$c/status")"
+    done
+    echo "$s"
+}
+
+run_hook() {
+    local card="" d try
+    for d in /sys/class/drm/card[0-9]; do
+        [ "$(basename "$(readlink "$d/device/driver")")" = nvidia ] && card=${d##*/}
+    done
+    if [ -z "$card" ]; then
+        nvidia_probe_log "no nvidia drm card"
+        return 0
+    fi
+    nvidia_probe_log "start$(nvidia_probe_states $card)"
+    for try in 1 2 3 4 5; do
+        for d in /sys/class/drm/$card-*; do
+            echo detect >"$d/status" 2>/dev/null
+        done
+        nvidia_probe_log "detect $try$(nvidia_probe_states $card)"
+        case "$(nvidia_probe_states $card)" in
+            *=connected*) break ;;
+        esac
+        sleep 1
+    done
+    udevadm trigger --action=change --subsystem-match=drm
+    udevadm settle --timeout=3
+    nvidia_probe_log "change event sent"
+}
+
+# vim: set ft=sh ts=4 sw=4 et:
