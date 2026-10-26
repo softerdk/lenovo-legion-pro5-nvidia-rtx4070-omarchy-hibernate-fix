@@ -31,6 +31,8 @@ its nvidia before jumping into the image, and with Preserve=1 and no
 
 ## Verified
 - 12:46 suspend → hibernate → resume: desktop back on HDMI, no Xid, Preserve=1.
+- 13:28 final re-test after a clean reboot (13:25, 0 retries): suspend → 30 s →
+  hibernate → resume, all smooth; shell restarted, delay back to 1800 s.
 - Cold boots: handoff logs `nvidia unloaded before resume (N retries)`, Preserve=1.
 - Check any time with `../check.sh`.
 
