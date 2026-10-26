@@ -1,6 +1,6 @@
 # NVIDIA + hibernate on harmony — what made it work (2026-10-26)
 
-Hybrid laptop: Intel i915 drives the internal eDP, NVIDIA (open 610-series
+Hybrid laptop: Intel i915 drives the internal eDP, NVIDIA (open 615-series
 module, GSP) drives the external HDMI. Hibernate = any sleep → 30 min →
 hibernate (`hibernate-after-sleep` system-sleep hook).
 
