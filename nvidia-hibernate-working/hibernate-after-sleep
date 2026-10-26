@@ -1,0 +1,61 @@
+#!/bin/bash
+# Sleep, then hibernate after HIBERNATE_DELAY seconds asleep (lid or menu).
+#
+# systemd's own suspend-then-hibernate is refused up front while Bitwarden
+# holds memfd_secret memory (/sys/power/disk shows [disabled]), so the lid
+# would do nothing at all. Instead: plain suspend always works; before it,
+# Bitwarden is force-quit (freeing secretmem) and an RTC alarm is set. When
+# the alarm wakes it (slept the full delay, not woken by the user), it
+# hibernates, whether the lid is closed or not.
+#
+# Installed 2026-10-23 as /usr/lib/systemd/system-sleep/hibernate-after-sleep.
+# Undo: delete that file.
+# 2026-10-25: post/hibernate restarts the Omarchy shell (frozen lock screen fix).
+
+HIBERNATE_DELAY=1800
+STAMP=/run/hibernate-after-sleep.stamp
+RTC=/sys/class/rtc/rtc0/wakealarm
+
+log() { echo "hibernate-after-sleep: $*" | systemd-cat -t hibernate-after-sleep; }
+
+kill_bitwarden() {
+  pkill -TERM -f '^/opt/Bitwarden/bitwarden-app' || return 0
+  for _ in 1 2 3 4 5 6; do
+    pgrep -f '^/opt/Bitwarden/bitwarden-app' >/dev/null || break
+    sleep 0.5
+  done
+  pkill -KILL -f '^/opt/Bitwarden/bitwarden-app'
+  log "quit Bitwarden"
+}
+
+case "$1/$2" in
+  pre/suspend)
+    kill_bitwarden
+    date +%s >"$STAMP"
+    echo 0 >"$RTC"
+    echo "+$HIBERNATE_DELAY" >"$RTC"
+    log "alarm set for ${HIBERNATE_DELAY}s"
+    ;;
+  post/suspend)
+    echo 0 >"$RTC"
+    [[ -f $STAMP ]] || exit 0
+    elapsed=$(($(date +%s) - $(<"$STAMP")))
+    rm -f "$STAMP"
+    if ((elapsed >= HIBERNATE_DELAY - 30)); then
+      log "slept ${elapsed}s, hibernating"
+      # Queue it outside this suspend job, which is still finishing.
+      systemd-run --on-active=3 --unit=hibernate-after-sleep-now systemctl hibernate
+    fi
+    ;;
+  pre/hibernate | pre/suspend-then-hibernate | pre/hybrid-sleep)
+    kill_bitwarden
+    ;;
+  post/hibernate | post/suspend-then-hibernate | post/hybrid-sleep)
+    # The NVIDIA driver can lose a GPU fence across hibernate, freezing the lock
+    # screen's render thread (incidents 2026-10-24/25). Restart the shell (it re-locks).
+    log "restarting the Omarchy shell after $2"
+    systemd-run --on-active=2 --timer-property=AccuracySec=100ms --unit=quickshell-restart-after-hibernate \
+      /home/hovgaard/fumast3r/quickshell-watch/quickshell-watch.sh --restart "after $2"
+    ;;
+esac
+exit 0

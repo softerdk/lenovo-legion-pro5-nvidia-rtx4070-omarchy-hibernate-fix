@@ -1,0 +1,14 @@
+#!/bin/bash
+
+build() {
+    add_file /etc/initcpio/nvidia-initrd.conf /etc/modprobe.d/zz-nvidia-initrd.conf
+    add_runscript
+}
+
+help() {
+    cat <<HELPEOF
+Loads nvidia with initramfs-only options (shows the LUKS prompt on screens
+wired to the NVIDIA GPU) and unloads it again on a cold boot, so the real
+root reloads it with the normal /etc/modprobe.d options. Place after encrypt, before resume.
+HELPEOF
+}

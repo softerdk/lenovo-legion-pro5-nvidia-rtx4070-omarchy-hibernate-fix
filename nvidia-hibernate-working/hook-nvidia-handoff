@@ -1,0 +1,29 @@
+#!/usr/bin/ash
+
+# Runs after encrypt (LUKS prompt shown on all screens) and before resume.
+# Always unload the initramfs-configured nvidia: on a hibernate resume the
+# restored kernel's own nvidia must find the GPU without another driver
+# instance holding it; on a cold boot udev in the real root loads it again
+# with PreserveVideoMemoryAllocations=1.
+run_hook() {
+    [ -d /sys/module/nvidia ] || return 0
+    plymouth --wait quit 2>/dev/null
+    # plymouth can still hold nvidia-drm for a moment after quit (e.g. after
+    # a flip timeout), so retry the unload for up to ~5 s.
+    tries=0
+    while [ -d /sys/module/nvidia ] && [ $tries -lt 25 ]; do
+        for m in nvidia_drm nvidia_uvm nvidia_modeset nvidia; do
+            [ -d /sys/module/$m ] && rmmod $m 2>/dev/null
+        done
+        [ -d /sys/module/nvidia ] || break
+        tries=$((tries + 1))
+        sleep 0.2
+    done
+    if [ -d /sys/module/nvidia ]; then
+        echo "<3>nvidia-handoff: could not unload nvidia after $tries retries, initramfs options stay" >/dev/kmsg
+    else
+        echo "<5>nvidia-handoff: nvidia unloaded before resume ($tries retries)" >/dev/kmsg
+    fi
+}
+
+# vim: set ft=sh ts=4 sw=4 et:
